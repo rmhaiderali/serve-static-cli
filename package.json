@@ -1,0 +1,13 @@
+{
+  "name": "serve-static-cli",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "serve-static-cli": "./index.js"
+  },
+  "dependencies": {
+    "finalhandler": "^2.1.0",
+    "serve-static": "^2.2.0",
+    "zod": "^3.25.46"
+  }
+}
