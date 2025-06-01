@@ -1,7 +1,21 @@
 # Usage
 
+Node
+
 ```bash
 npx github:rmhaiderali/serve-static-cli <root> <port> <listing> <options>
+```
+
+Bun
+
+```bash
+bunx github:rmhaiderali/serve-static-cli#bun <root> <port> <listing> <options>
+```
+
+Deno
+
+```bash
+deno -A https://raw.githubusercontent.com/rmhaiderali/serve-static-cli/refs/heads/deno/index.js <root> <port> <listing> <options>
 ```
 
 Default values
