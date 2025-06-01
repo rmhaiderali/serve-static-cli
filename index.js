@@ -1,18 +1,16 @@
-#!/usr/bin/env node
+#!/usr/bin/env deno
 
 import http from "node:http"
 import fs from "node:fs/promises"
-import { join } from "node:path/posix"
-import { z } from "zod"
-import serveStatic from "serve-static"
-import finalhandler from "finalhandler"
+import { join, dirname } from "node:path/posix"
+import { z } from "npm:zod"
+import serveStatic from "npm:serve-static"
+import finalhandler from "npm:finalhandler"
 import format from "./utils/format.js"
 import { serveStaticOptionsSchema } from "./schemas.js"
 
-const template = await fs.readFile(
-  import.meta.dirname + "/template.html",
-  "utf8"
-)
+const response = await fetch(dirname(import.meta.url) + "/template.html")
+const template = await response.text()
 
 function render(template, variables) {
   return Object.entries(variables).reduce(
