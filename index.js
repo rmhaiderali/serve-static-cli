@@ -73,8 +73,7 @@ const server = http.createServer(async function onRequest(req, res) {
   serve(req, res, async function (err) {
     if (!err && listing === "yes") {
       try {
-        const { url } = req
-        const path = url.slice("?").slice("#")
+        const path = decodeURI(req.url).slice("?").slice("#")
         const fullPath = join(root, path)
         const stats = await fs.stat(fullPath)
 
@@ -87,7 +86,7 @@ const server = http.createServer(async function onRequest(req, res) {
                 ? files.filter((f) => !f.startsWith("."))
                 : files
             )
-            .map((file) => "<li><a href=" + file + ">" + file + "</a></li>")
+            .map((file) => "<li><a href=\"" + file + "\">" + file + "</a></li>")
             .join("")
 
           const html = render(template, { path, list })
