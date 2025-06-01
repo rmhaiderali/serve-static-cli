@@ -9,7 +9,10 @@ import finalhandler from "finalhandler"
 import format from "./utils/format.js"
 import { serveStaticOptionsSchema } from "./schemas.js"
 
-const template = await fs.readFile("template.html", "utf8")
+const template = await fs.readFile(
+  import.meta.dirname + "/template.html",
+  "utf8"
+)
 
 function render(template, variables) {
   return Object.entries(variables).reduce(
@@ -100,5 +103,5 @@ const server = http.createServer(async function onRequest(req, res) {
 
 server.listen(port, () => {
   console.log("Started server at http://localhost:" + port)
-  console.log(format("\"")({ root, port, listing, options }, {colors: true}))
+  console.log(format("\"")({ root, port, listing, options }, { colors: true }))
 })
