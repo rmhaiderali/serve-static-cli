@@ -8,7 +8,7 @@ export const serveStaticOptionsSchema = z.object({
   extensions: z.union([z.array(z.string()), z.literal(false)]).optional(),
   fallthrough: z.boolean().optional(),
   immutable: z.boolean().optional(),
-  index: z.union([z.boolean(), z.string(), z.array(z.string())]).optional(),
+  index: z.union([z.literal(false), z.string(), z.array(z.string())]).optional(),
   lastModified: z.boolean().optional(),
   maxAge: z.union([z.number(), z.string()]).optional(),
   redirect: z.boolean().optional(),
