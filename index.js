@@ -68,12 +68,18 @@ if (!z.number().int().gte(1).lte(65535).safeParse(port).success) {
 
 const serve = serveStatic(root, options)
 
+const hideDotDirectories = ["deny", "ignore"].includes(options.dotfiles)
+
 const server = http.createServer(async function onRequest(req, res) {
-  console.log(req.method, req.url)
   serve(req, res, async function (err) {
-    if (!err && listing === "yes") {
+    console.log(req.method, req.url)
+    const path = decodeURI(req.url).slice("?").slice("#")
+    if (
+      !err &&
+      listing === "yes" &&
+      !(hideDotDirectories && path.indexOf("/.") !== -1)
+    ) {
       try {
-        const path = decodeURI(req.url).slice("?").slice("#")
         const fullPath = join(root, path)
         const stats = await fs.stat(fullPath)
 
@@ -82,7 +88,7 @@ const server = http.createServer(async function onRequest(req, res) {
 
           const list = [".."]
             .concat(
-              ["deny", "ignore"].includes(options.dotfiles)
+              hideDotDirectories
                 ? files.filter((f) => !f.startsWith("."))
                 : files
             )
