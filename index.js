@@ -69,8 +69,8 @@ const serve = serveStatic(root, options)
 const hideDotDirectories = ["deny", "ignore"].includes(options.dotfiles)
 
 const server = http.createServer(async function onRequest(req, res) {
+  console.log(req.method, req.url)
   serve(req, res, async function (err) {
-    console.log(req.method, req.url)
     const path = decodeURI(req.url).slice("?").slice("#")
     if (
       !err &&
