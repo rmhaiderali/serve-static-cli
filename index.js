@@ -2,8 +2,10 @@
 
 import http from "node:http"
 import fs from "node:fs/promises"
-import { join, dirname } from "node:path/posix"
+import { join, dirname, resolve } from "node:path"
+import ms from "npm:ms"
 import { z } from "npm:zod"
+import pc from "npm:picocolors"
 import serveStatic from "npm:serve-static"
 import finalhandler from "npm:finalhandler"
 import format from "./utils/format.js"
@@ -38,6 +40,8 @@ if (!rootStats.isDirectory()) {
   process.exit(2)
 }
 
+const absRoot = resolve(root)
+
 try {
   userOptions = eval("(" + (process.argv[5] || "{}") + ")")
 } catch (e) {
@@ -66,45 +70,80 @@ if (!z.number().int().gte(1).lte(65535).safeParse(port).success) {
 
 const serve = serveStatic(root, options)
 
-const hideDotDirectories = ["deny", "ignore"].includes(options.dotfiles)
+const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
 
 const server = http.createServer(async function onRequest(req, res) {
-  console.log(req.method, req.url)
+  const startTime = Date.now()
+
+  console.log(
+    pc.gray(new Date().toLocaleString()) +
+      pc.cyan(" " + req.method + " " + req.url)
+  )
+
+  res.on("finish", () => {
+    let color = (t) => t
+    if (res.statusCode >= 400) color = pc.red
+    else if (res.statusCode >= 300) color = pc.yellow
+    else if (res.statusCode >= 200) color = pc.green
+    console.log(
+      pc.gray(new Date().toLocaleString()) +
+        color(
+          " Returned " + res.statusCode + " in " + ms(Date.now() - startTime)
+        )
+    )
+  })
+
   serve(req, res, async function (err) {
-    const path = decodeURI(req.url).slice("?").slice("#")
-    if (
-      !err &&
-      listing === "yes" &&
-      !(hideDotDirectories && path.indexOf("/.") !== -1)
-    ) {
+    const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
+
+    if (listing === "yes" && !(hideDotDirs && path.indexOf("/.") !== -1)) {
+      const fullPath = join(absRoot, path)
+      let stat = null
+
       try {
-        const fullPath = join(root, path)
-        const stats = await fs.stat(fullPath)
-
-        if (stats.isDirectory()) {
-          const files = await fs.readdir(fullPath)
-
-          const list = [".."]
-            .concat(
-              hideDotDirectories
-                ? files.filter((f) => !f.startsWith("."))
-                : files
-            )
-            .map((file) => "<li><a href=\"" + file + "\">" + file + "</a></li>")
-            .join("")
-
-          const html = render(template, { path, list })
-          res.writeHead(200, { "Content-Type": "text/html" })
-          res.end(html)
-          return
-        }
+        stat = await fs.stat(fullPath)
       } catch (e) {}
+
+      if (stat?.isDirectory()) {
+        if (options.setHeaders) await options.setHeaders(res, fullPath, stat)
+
+        const files = await fs.readdir(fullPath)
+        const slash = path.endsWith("/") ? "" : "/"
+
+        const list = [".."]
+          .concat(hideDotDirs ? files.filter((f) => !f.startsWith(".")) : files)
+          .map(
+            (file) => `<li><a href="${path}${slash}${file}">${file}</a></li>`
+          )
+          .join("")
+
+        res.writeHead(200, { "content-type": "text/html" })
+        res.end(render(template, { path, list }))
+        return
+      }
     }
-    finalhandler(req, res)(err)
+
+    finalhandler(req, res)()
   })
 })
 
+let runtime = null
+if (typeof global !== "undefined") runtime = "node"
+if (typeof Deno !== "undefined") runtime = "deno"
+if (typeof Bun !== "undefined") runtime = "bun"
+
+let version = null
+if (runtime === "node") version = process.versions.node
+else if (runtime === "deno") version = Deno.version.deno
+else if (runtime === "bun") version = Bun.version
+
+let color = (t) => t
+if (runtime === "node") color = pc.green
+else if (runtime === "deno") color = pc.gray
+else if (runtime === "bun") color = pc.magenta
+
 server.listen(port, () => {
-  console.log("Started server at http://localhost:" + port)
+  if (runtime && version) console.log(color("using " + runtime + " " + version))
+  console.log("started server at http://localhost:" + port)
   console.log(format("\"")({ root, port, listing, options }, { colors: true }))
 })
