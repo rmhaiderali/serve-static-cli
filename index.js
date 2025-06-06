@@ -98,18 +98,29 @@ const server = http.createServer(async function onRequest(req, res) {
   serve(req, res, async function (err) {
     const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
 
-    if (listing === "yes" && !(hideDotDirs && path.indexOf("/.") !== -1)) {
+    serve_listing: if (
+      listing === "yes" &&
+      !(hideDotDirs && path.indexOf("/.") !== -1)
+    ) {
       const fullPath = join(absRoot, path)
-      let stat = null
 
+      let stat = null
       try {
         stat = await fs.stat(fullPath)
-      } catch (e) {}
+      } catch (e) {
+        break serve_listing
+      }
 
-      if (stat?.isDirectory()) {
+      if (stat.isDirectory()) {
         if (options.setHeaders) await options.setHeaders(res, fullPath, stat)
 
-        const files = await fs.readdir(fullPath)
+        let files = null
+        try {
+          files = await fs.readdir(fullPath)
+        } catch (e) {
+          break serve_listing
+        }
+
         const slash = path.endsWith("/") ? "" : "/"
 
         const list = [".."]
