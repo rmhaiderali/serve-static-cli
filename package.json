@@ -11,5 +11,9 @@
     "picocolors": "^1.1.1",
     "serve-static": "^2.2.0",
     "zod": "^3.25.46"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": false
   }
 }
