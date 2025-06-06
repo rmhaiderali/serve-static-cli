@@ -30,6 +30,12 @@ Disable index
 npx github:rmhaiderali/serve-static-cli . 3000 yes "{index: false}"
 ```
 
+Set headers
+
+```bash
+npx github:rmhaiderali/serve-static-cli . 3000 yes '{setHeaders: (res) => res.setHeader("powered-by", "serve-static-cli")}'
+```
+
 | Options | Discription                 | Type                        | Default               |
 | ------- | --------------------------- | --------------------------- | --------------------- |
 | root    | root directory path         | string                      | "."                   |
