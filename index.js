@@ -5,7 +5,7 @@ import fs from "node:fs/promises"
 import { join, resolve } from "node:path"
 import ms from "ms"
 import { z } from "zod"
-import pc from "picocolors"
+import chalk from "chalk"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
 import format from "./utils/format.js"
@@ -78,17 +78,17 @@ const server = http.createServer(async function onRequest(req, res) {
   const startTime = Date.now()
 
   console.log(
-    pc.gray(new Date().toLocaleString()) +
-      pc.cyan(" " + req.method + " " + req.url)
+    chalk.gray(new Date().toLocaleString()) +
+      chalk.cyan(" " + req.method + " " + req.url)
   )
 
   res.on("finish", () => {
     let color = (t) => t
-    if (res.statusCode >= 400) color = pc.red
-    else if (res.statusCode >= 300) color = pc.yellow
-    else if (res.statusCode >= 200) color = pc.green
+    if (res.statusCode >= 400) color = chalk.red
+    else if (res.statusCode >= 300) color = chalk.yellow
+    else if (res.statusCode >= 200) color = chalk.green
     console.log(
-      pc.gray(new Date().toLocaleString()) +
+      chalk.gray(new Date().toLocaleString()) +
         color(
           " Returned " + res.statusCode + " in " + ms(Date.now() - startTime)
         )
@@ -151,12 +151,12 @@ else if (runtime === "deno") version = Deno.version.deno
 else if (runtime === "bun") version = Bun.version
 
 let color = (t) => t
-if (runtime === "node") color = pc.green
-else if (runtime === "deno") color = pc.gray
-else if (runtime === "bun") color = pc.magenta
+if (runtime === "node") color = chalk.hex("#66cc33")
+else if (runtime === "deno") color = chalk.hex("#70ffaf")
+else if (runtime === "bun") color = chalk.hex("#f472b6")
 
 server.listen(port, () => {
-  if (runtime && version) console.log(color("using " + runtime + " " + version))
+  if (runtime && version) console.log("using " + color(runtime + " " + version))
   console.log("started server at http://localhost:" + port)
   console.log(format("\"")({ root, port, listing, options }, { colors: true }))
 })
