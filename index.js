@@ -6,22 +6,18 @@ import { join, resolve } from "node:path"
 import ms from "ms"
 import { z } from "zod"
 import chalk from "chalk"
+import fresh from "fresh"
+import etagify from "etag"
+import mustache from "mustache"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
 import format from "./utils/format.js"
 import { serveStaticOptionsSchema } from "./schemas.js"
 
 const template = await fs.readFile(
-  import.meta.dirname + "/template.html",
+  import.meta.dirname + "/template.mustache",
   "utf8"
 )
-
-function render(template, variables) {
-  return Object.entries(variables).reduce(
-    (prev, [key, value]) => prev.replaceAll("{" + key + "}", value),
-    template
-  )
-}
 
 const root = process.argv[2] || "."
 const port = +process.argv[3] || 3000
@@ -70,6 +66,12 @@ if (!z.number().int().gte(1).lte(65535).safeParse(port).success) {
   process.exit(6)
 }
 
+const MAX_MAXAGE = 60 * 60 * 24 * 365 * 1000 // 1 year
+
+let maxage = options.maxAge || options.maxage
+maxage = typeof maxage === "string" ? ms(maxage) : Number(maxage)
+maxage = !isNaN(maxage) ? Math.min(Math.max(maxage), MAX_MAXAGE) : 0
+
 const serve = serveStatic(root, options)
 
 const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
@@ -114,6 +116,21 @@ const server = http.createServer(async function onRequest(req, res) {
       if (stat.isDirectory()) {
         if (options.setHeaders) await options.setHeaders(res, fullPath, stat)
 
+        const etag = etagify(stat)
+        const lastModified = stat.mtime.toUTCString()
+
+        const check = {}
+
+        if (options.etag !== false) check.etag = etag
+        if (options.lastModified !== false)
+          check["last-modified"] = lastModified
+
+        if (fresh(req.headers, check)) {
+          res.statusCode = 304
+          res.end()
+          break serve_listing
+        }
+
         let files = null
         try {
           files = await fs.readdir(fullPath)
@@ -123,15 +140,24 @@ const server = http.createServer(async function onRequest(req, res) {
 
         const slash = path.endsWith("/") ? "" : "/"
 
-        const list = [".."]
+        files = [".."]
           .concat(hideDotDirs ? files.filter((f) => !f.startsWith(".")) : files)
-          .map(
-            (file) => `<li><a href="${path}${slash}${file}">${file}</a></li>`
-          )
-          .join("")
+          .map((name) => ({ name, url: encodeURI(path + slash + name) }))
 
-        res.writeHead(200, { "content-type": "text/html" })
-        res.end(render(template, { path, list }))
+        const doc = mustache.render(template, { path, files })
+
+        if (options.etag !== false) res.setHeader("etag", etag)
+
+        if (options.lastModified !== false)
+          res.setHeader("last-modified", lastModified)
+
+        let cacheControl = "public, max-age=" + Math.floor(maxage / 1000)
+        if (options.immutable) cacheControl += ", immutable"
+        res.setHeader("cache-control", cacheControl)
+
+        res.setHeader("content-type", "text/html; charset=utf-8")
+        res.setHeader("content-length", Buffer.byteLength(doc))
+        res.end(doc)
         return
       }
     }
