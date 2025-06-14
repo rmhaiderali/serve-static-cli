@@ -3,6 +3,7 @@
 import http from "node:http"
 import fs from "node:fs/promises"
 import { join, dirname, resolve } from "node:path"
+import { Buffer } from "node:buffer"
 import ms from "npm:ms"
 import { z } from "npm:zod"
 import chalk from "npm:chalk"
