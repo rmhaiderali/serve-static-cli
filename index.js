@@ -148,12 +148,13 @@ const server = http.createServer(async function onRequest(req, res) {
 
         contents = contents
           .map((c) => {
-            const type = c.isDirectory() ? "directory" : "file"
+            const type =
+              c.isDirectory() || c.isSymbolicLink() ? "dir/symlink" : "file"
             return { name: c.name, type, url: encodeURI(path + slash + c.name) }
           })
           .sort((a, b) => {
             if (a.type === b.type) return 0
-            return a.type === "directory" ? -1 : 1
+            return a.type === "dir/symlink" ? -1 : 1
           })
 
         const doc = mustache.render(template, { path, contents })
