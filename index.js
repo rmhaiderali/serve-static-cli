@@ -4,7 +4,7 @@ import http from "node:http"
 import fs from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { Buffer } from "node:buffer"
-import ms from "ms"
+import prettyMs from "pretty-ms"
 import { z } from "zod"
 import chalk from "chalk"
 import fresh from "fresh"
@@ -30,7 +30,7 @@ let rootStats = null
 try {
   rootStats = await fs.stat(root)
 } catch (e) {
-  console.error("Failed to stat root: \"" + root + "\"")
+  console.error('Failed to stat root: "' + root + '"')
   process.exit(1)
 }
 
@@ -67,10 +67,14 @@ if (!z.number().int().gte(1).lte(65535).safeParse(port).success) {
   process.exit(6)
 }
 
+function getPrettyMs(delta) {
+  return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
+}
+
 const MAX_MAXAGE = 60 * 60 * 24 * 365 * 1000 // 1 year
 
 let maxage = options.maxAge || options.maxage
-maxage = typeof maxage === "string" ? ms(maxage) : Number(maxage)
+maxage = typeof maxage === "string" ? getPrettyMs(maxage) : Number(maxage)
 maxage = !isNaN(maxage) ? Math.min(Math.max(maxage), MAX_MAXAGE) : 0
 
 const serve = serveStatic(root, options)
@@ -78,7 +82,7 @@ const serve = serveStatic(root, options)
 const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
 
 const server = http.createServer(async function onRequest(req, res) {
-  const startTime = Date.now()
+  const startTime = process.hrtime.bigint()
 
   console.log(
     chalk.gray(new Date().toLocaleString()) +
@@ -90,10 +94,11 @@ const server = http.createServer(async function onRequest(req, res) {
     if (res.statusCode >= 400) color = chalk.red
     else if (res.statusCode >= 300) color = chalk.yellow
     else if (res.statusCode >= 200) color = chalk.green
+    const deltaTime = Number(process.hrtime.bigint() - startTime)
     console.log(
       chalk.gray(new Date().toLocaleString()) +
         color(
-          " Returned " + res.statusCode + " in " + ms(Date.now() - startTime)
+          " Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6)
         )
     )
   })
@@ -197,5 +202,5 @@ else if (runtime === "bun") color = chalk.hex("#f472b6")
 server.listen(port, () => {
   if (runtime && version) console.log("using " + color(runtime + " " + version))
   console.log("started server at http://localhost:" + port)
-  console.log(format("\"")({ root, port, listing, options }, { colors: true }))
+  console.log(format('"')({ root, port, listing, options }, { colors: true }))
 })
