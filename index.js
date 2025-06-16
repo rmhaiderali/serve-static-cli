@@ -132,20 +132,31 @@ const server = http.createServer(async function onRequest(req, res) {
           break serve_listing
         }
 
-        let files = null
+        let contents = null
         try {
-          files = await fs.readdir(fullPath)
+          contents = await fs.readdir(fullPath, { withFileTypes: true })
         } catch (e) {
           break serve_listing
         }
 
         const slash = path.endsWith("/") ? "" : "/"
 
-        files = [".."]
-          .concat(hideDotDirs ? files.filter((f) => !f.startsWith(".")) : files)
-          .map((name) => ({ name, url: encodeURI(path + slash + name) }))
+        contents.unshift({ name: "..", isDirectory: () => true })
 
-        const doc = mustache.render(template, { path, files })
+        if (hideDotDirs)
+          contents = contents.filter((c) => !c.name.startsWith("."))
+
+        contents = contents
+          .map((c) => {
+            const type = c.isDirectory() ? "directory" : "file"
+            return { name: c.name, type, url: encodeURI(path + slash + c.name) }
+          })
+          .sort((a, b) => {
+            if (a.type === b.type) return 0
+            return a.type === "directory" ? -1 : 1
+          })
+
+        const doc = mustache.render(template, { path, contents })
 
         if (options.etag !== false) res.setHeader("etag", etag)
 

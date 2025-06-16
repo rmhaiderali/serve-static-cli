@@ -9,19 +9,54 @@
       li {
         font-size: large
       }
+
       a {
         text-decoration: none
+      }
+
+      .directory:link {
+        color:hsl(240, 100%, 50%)
+      }
+
+      .directory:visited {
+        color:hsl(240, 100%, 35%)
+      }
+
+      .file:link {
+        color:hsl(16, 100%, 50%)
+      }
+
+      .file:visited {
+        color:hsl(16, 100%, 35%)
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .directory:link {
+          color:hsl(195, 90%, 55%)
+        }
+
+        .directory:visited {
+          color:hsl(195, 90%, 40%)
+        }
+
+        .file:link {
+          color:hsl(43, 90%, 55%)
+        }
+
+        .file:visited {
+          color:hsl(43, 90%, 40%)
+        }
       }
     </style>
   </head>
   <body>
     <h2>Directory Listing for {{path}}</h2>
     <ul>
-        {{#files}}
-          <li>
-            <a href="{{url}}">{{name}}</a>
-          </li>
-        {{/files}}
+      {{#contents}}
+        <li>
+          <a class="{{type}}" href="{{url}}">{{name}}</a>
+        </li>
+      {{/contents}}
     </ul>
   </body>
 </html>
