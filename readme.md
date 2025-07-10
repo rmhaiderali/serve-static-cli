@@ -38,11 +38,12 @@ npx github:rmhaiderali/serve-static-cli . '{setHeaders: (res) => res.setHeader("
 
 ## Environment Variables:
 
-| Variable | Purpose                                  |
-| -------- | ---------------------------------------- |
-| HOST     | Network interface to listen on           |
-| PORT     | Port number to listen on                 |
-| LISTING  | Display directory content, true or false |
+| Variable       | Purpose                                  |
+| -------------- | ---------------------------------------- |
+| HOST           | Network interface to listen on           |
+| PORT           | Port number to listen on                 |
+| DIR_LISTING    | Display directory content, true or false |
+| SHOW_ONLY_IPV4 | Show only IPv4 addresses, true or false  |
 
 ## Arguments:
 

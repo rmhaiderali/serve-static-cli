@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import os from "node:os"
 import http from "node:http"
 import fs from "node:fs/promises"
 import { inspect } from "node:util"
@@ -65,28 +66,41 @@ if (!result.success) {
 
 Object.assign(options, userOptions)
 
-let listing = process.env.LISTING
 let port = process.env.PORT
 let host = process.env.HOST
-
-if (listing && !z.enum(["true", "false"]).safeParse(listing).success) {
-  console.error("LISTING must be true or false")
-  process.exit(5)
-}
+let dir_listing = process.env.DIR_LISTING
+let show_only_ipv4 = process.env.SHOW_ONLY_IPV4
 
 if (port && !z.number().int().min(0).max(65535).safeParse(+port).success) {
   console.error("PORT must be >= 0 and < 65536")
+  process.exit(5)
+}
+
+if (
+  host?.toLocaleLowerCase() !== "localhost" &&
+  host &&
+  !z.string().ip().safeParse(host).success
+) {
+  console.error("HOST must be a valid network interface address")
   process.exit(6)
 }
 
-if (host && !z.string().ip().safeParse(host).success) {
-  console.error("HOST must be a valid IP address")
+if (dir_listing && !z.enum(["true", "false"]).safeParse(dir_listing).success) {
+  console.error("DIR_LISTING must be true or false")
   process.exit(7)
 }
 
-listing = listing !== "false"
+if (
+  show_only_ipv4 &&
+  !z.enum(["true", "false"]).safeParse(show_only_ipv4).success
+) {
+  console.error("SHOW_ONLY_IPV4 must be true or false")
+  process.exit(8)
+}
+
 port = port ? +port : 3000
-host = host || "localhost"
+dir_listing = dir_listing !== "false"
+show_only_ipv4 = show_only_ipv4 !== "false"
 
 function getPrettyMs(delta) {
   return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
@@ -136,7 +150,10 @@ const server = http.createServer(async function onRequest(req, res) {
   serve(req, res, async function (err) {
     const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
 
-    serve_listing: if (listing && !(hideDotDirs && path.indexOf("/.") !== -1)) {
+    serve_listing: if (
+      dir_listing &&
+      !(hideDotDirs && path.indexOf("/.") !== -1)
+    ) {
       const fullPath = join(absRoot, path)
 
       let stat = null
@@ -211,28 +228,54 @@ const server = http.createServer(async function onRequest(req, res) {
   })
 })
 
-let runtime = null
-if (typeof global !== "undefined") runtime = "node"
-if (typeof Deno !== "undefined") runtime = "deno"
-if (typeof Bun !== "undefined") runtime = "bun"
-
-let version = null
-if (runtime === "node") version = process.versions.node
-else if (runtime === "deno") version = Deno.version.deno
-else if (runtime === "bun") version = Bun.version
-
-let color = (t) => t
-if (runtime === "node") color = chalk.hex("#66cc33")
-else if (runtime === "deno") color = chalk.hex("#70ffaf")
-else if (runtime === "bun") color = chalk.hex("#f472b6")
-
 const opts = {}
 if (host) opts.host = host
 if (port) opts.port = port
 
 server.listen(opts, () => {
-  console.log("started server at http://" + host + ":" + port)
+  let runtime = null
+  if (typeof global !== "undefined") runtime = "node"
+  if (typeof Deno !== "undefined") runtime = "deno"
+  if (typeof Bun !== "undefined") runtime = "bun"
+
+  let version = null
+  if (runtime === "node") version = process.versions.node
+  else if (runtime === "deno") version = Deno.version.deno
+  else if (runtime === "bun") version = Bun.version
+
+  let color = (t) => t
+  if (runtime === "node") color = chalk.hex("#66cc33")
+  else if (runtime === "deno") color = chalk.hex("#70ffaf")
+  else if (runtime === "bun") color = chalk.hex("#f472b6")
+
+  const { address, family, port } = server.address()
+
   if (runtime && version) console.log("using " + color(runtime + " " + version))
-  const optsString = inspect({ root, listing, options }, { colors: true })
-  console.log(toDoubleQuotes(optsString))
+  const argsAndEnvs = { root, dir_listing, show_only_ipv4, options }
+  console.log(toDoubleQuotes(inspect(argsAndEnvs, { colors: true })))
+
+  const addresses = []
+
+  function netToURL({ address, family, port }) {
+    if (family === "IPv6") return "http://[" + address + "]:" + port
+    return "http://" + address + ":" + port
+  }
+
+  if (address === "0.0.0.0" || address === "::")
+    for (const netList of Object.values(os.networkInterfaces())) {
+      for (const net of netList) {
+        if ((address === "0.0.0.0" || show_only_ipv4) && net.family !== "IPv4")
+          continue
+        addresses.push({ address: net.address, family: net.family, port })
+      }
+    }
+  else addresses.push({ address, family, port })
+
+  if (addresses.some((net) => ["127.0.0.1", "::1"].includes(net.address)))
+    addresses.unshift({ address: "localhost", family: "IPv4", port })
+
+  console.log("server is listening on:")
+  addresses
+    .sort((a, b) => a.family.localeCompare(b.family))
+    .forEach((net) => console.log("  " + color(netToURL(net))))
 })
