@@ -2,6 +2,7 @@
 
 import http from "node:http"
 import fs from "node:fs/promises"
+import { inspect } from "node:util"
 import { join, resolve } from "node:path"
 import { Buffer } from "node:buffer"
 import prettyMs from "pretty-ms"
@@ -12,8 +13,17 @@ import etagify from "etag"
 import mustache from "mustache"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
-import format from "./utils/format.js"
+import replaceQuotes, { double, single, backtick } from "replace-quotes"
 import { serveStaticOptionsSchema } from "./schemas.js"
+
+const toDoubleQuotes = replaceQuotes(
+  // from
+  double,
+  single,
+  backtick,
+  // to
+  double
+)
 
 const template = await fs.readFile(
   import.meta.dirname + "/template.mustache",
@@ -21,8 +31,6 @@ const template = await fs.readFile(
 )
 
 const root = process.argv[2] || "."
-const port = +process.argv[3] || 3000
-const listing = process.argv[4] || "yes"
 const options = { dotfiles: "allow" }
 let userOptions = null
 let rootStats = null
@@ -42,7 +50,7 @@ if (!rootStats.isDirectory()) {
 const absRoot = resolve(root)
 
 try {
-  userOptions = eval("(" + (process.argv[5] || "{}") + ")")
+  userOptions = eval("(" + (process.argv[3] || "{}") + ")")
 } catch (e) {
   console.error("Failed to evaluate options object")
   process.exit(3)
@@ -57,15 +65,28 @@ if (!result.success) {
 
 Object.assign(options, userOptions)
 
-if (!z.enum(["yes", "no"]).safeParse(listing).success) {
-  console.error("Listing accepts either yes or no")
+let listing = process.env.LISTING
+let port = process.env.PORT
+let host = process.env.HOST
+
+if (listing && !z.enum(["true", "false"]).safeParse(listing).success) {
+  console.error("LISTING must be true or false")
   process.exit(5)
 }
 
-if (!z.number().int().gte(1).lte(65535).safeParse(port).success) {
-  console.error("Port must be an integer between 1 and 65535 (inclusive)")
+if (port && !z.number().int().min(0).max(65535).safeParse(+port).success) {
+  console.error("PORT must be >= 0 and < 65536")
   process.exit(6)
 }
+
+if (host && !z.string().ip().safeParse(host).success) {
+  console.error("HOST must be a valid IP address")
+  process.exit(7)
+}
+
+listing = listing !== "false"
+port = port ? +port : 3000
+host = host || "localhost"
 
 function getPrettyMs(delta) {
   return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
@@ -81,12 +102,18 @@ const serve = serveStatic(root, options)
 
 const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
 
+let requestId = 0n
+
 const server = http.createServer(async function onRequest(req, res) {
+  const id = ++requestId
   const startTime = process.hrtime.bigint()
 
   console.log(
-    chalk.gray(new Date().toLocaleString()) +
-      chalk.cyan(" " + req.method + " " + req.url)
+    chalk.magenta("#" + id) +
+      " " +
+      chalk.gray(new Date().toLocaleString()) +
+      " " +
+      chalk.cyan(req.method + " " + req.url)
   )
 
   res.on("finish", () => {
@@ -96,9 +123,12 @@ const server = http.createServer(async function onRequest(req, res) {
     else if (res.statusCode >= 200) color = chalk.green
     const deltaTime = Number(process.hrtime.bigint() - startTime)
     console.log(
-      chalk.gray(new Date().toLocaleString()) +
+      chalk.magenta("#" + id) +
+        " " +
+        chalk.gray(new Date().toLocaleString()) +
+        " " +
         color(
-          " Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6)
+          "Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6)
         )
     )
   })
@@ -106,10 +136,7 @@ const server = http.createServer(async function onRequest(req, res) {
   serve(req, res, async function (err) {
     const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
 
-    serve_listing: if (
-      listing === "yes" &&
-      !(hideDotDirs && path.indexOf("/.") !== -1)
-    ) {
+    serve_listing: if (listing && !(hideDotDirs && path.indexOf("/.") !== -1)) {
       const fullPath = join(absRoot, path)
 
       let stat = null
@@ -199,8 +226,13 @@ if (runtime === "node") color = chalk.hex("#66cc33")
 else if (runtime === "deno") color = chalk.hex("#70ffaf")
 else if (runtime === "bun") color = chalk.hex("#f472b6")
 
-server.listen(port, () => {
+const opts = {}
+if (host) opts.host = host
+if (port) opts.port = port
+
+server.listen(opts, () => {
+  console.log("started server at http://" + host + ":" + port)
   if (runtime && version) console.log("using " + color(runtime + " " + version))
-  console.log("started server at http://localhost:" + port)
-  console.log(format('"')({ root, port, listing, options }, { colors: true }))
+  const optsString = inspect({ root, listing, options }, { colors: true })
+  console.log(toDoubleQuotes(optsString))
 })

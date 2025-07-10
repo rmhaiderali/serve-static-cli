@@ -1,5 +1,6 @@
 {
   "name": "serve-static-cli",
+  "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "bin": {
@@ -12,11 +13,11 @@
     "fresh": "^2.0.0",
     "mustache": "^4.2.0",
     "pretty-ms": "^9.2.0",
+    "replace-quotes": "^0.1.1",
     "serve-static": "^2.2.0",
     "zod": "^3.25.46"
   },
   "prettier": {
-    "semi": false,
-    "singleQuote": false
+    "semi": false
   }
 }
