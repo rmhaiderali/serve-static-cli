@@ -193,18 +193,31 @@ const server = http.createServer(async function onRequest(req, res) {
         contents.unshift({ name: "..", isDirectory: () => true })
 
         if (hideDotDirs)
-          contents = contents.filter((c) => !c.name.startsWith("."))
+          contents = contents.filter((dirent) => !dirent.name.startsWith("."))
 
-        contents = contents
-          .map((c) => {
-            const type =
-              c.isDirectory() || c.isSymbolicLink() ? "dir/symlink" : "file"
-            return { name: c.name, type, url: encodeURI(path + slash + c.name) }
+        contents = await Promise.all(
+          contents.map(async (dirent) => {
+            let type = "file"
+            if (dirent.isDirectory()) type = "dir"
+            else if (dirent.isSymbolicLink()) {
+              try {
+                const stat = await fs.stat(fullPath + slash + dirent.name)
+                if (stat.isDirectory()) type = "dir"
+              } catch {}
+            }
+
+            return {
+              type,
+              name: dirent.name,
+              url: encodeURI(path + slash + dirent.name),
+            }
           })
-          .sort((a, b) => {
-            if (a.type === b.type) return 0
-            return a.type === "dir/symlink" ? -1 : 1
-          })
+        )
+
+        contents = contents.sort((a, b) => {
+          if (a.type === b.type) return 0
+          return a.type === "dir" ? -1 : 1
+        })
 
         const doc = mustache.render(template, { path, contents })
 
