@@ -9,7 +9,7 @@ npx github:rmhaiderali/serve-static-cli <root> <options>
 Bun
 
 ```bash
-bunx github:rmhaiderali/serve-static-cli#bun <root> <options>
+bunx --bun github:rmhaiderali/serve-static-cli <root> <options>
 ```
 
 Deno
