@@ -120,12 +120,27 @@ let requestId = 0n
 
 const fileTypes = ["dir", "file"]
 
+let runtime = null
+if (typeof global !== "undefined") runtime = "node"
+if (typeof Deno !== "undefined") runtime = "deno"
+if (typeof Bun !== "undefined") runtime = "bun"
+
+let version = null
+if (runtime === "node") version = process.versions.node
+else if (runtime === "deno") version = Deno.version.deno
+else if (runtime === "bun") version = Bun.version
+
+let runtimeColor = (t) => t
+if (runtime === "node") runtimeColor = chalk.hex("#66cc33")
+else if (runtime === "deno") runtimeColor = chalk.hex("#70ffaf")
+else if (runtime === "bun") runtimeColor = chalk.hex("#f472b6")
+
 const server = http.createServer(async function onRequest(req, res) {
   const id = ++requestId
   const startTime = process.hrtime.bigint()
 
   console.log(
-    chalk.magenta("#" + id) +
+    runtimeColor("#" + id) +
       " " +
       chalk.gray(new Date().toLocaleString()) +
       " " +
@@ -133,17 +148,18 @@ const server = http.createServer(async function onRequest(req, res) {
   )
 
   res.on("finish", () => {
-    let color = (t) => t
-    if (res.statusCode >= 400) color = chalk.red
-    else if (res.statusCode >= 300) color = chalk.yellow
-    else if (res.statusCode >= 200) color = chalk.green
+    let resLogColor = (t) => t
+    if (res.statusCode >= 400) resLogColor = chalk.red
+    else if (res.statusCode >= 300) resLogColor = chalk.yellow
+    else if (res.statusCode >= 200) resLogColor = chalk.green
     const deltaTime = Number(process.hrtime.bigint() - startTime)
+
     console.log(
-      chalk.magenta("#" + id) +
+      runtimeColor("#" + id) +
         " " +
         chalk.gray(new Date().toLocaleString()) +
         " " +
-        color(
+        resLogColor(
           "Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6)
         )
     )
@@ -251,24 +267,10 @@ if (host) opts.host = host
 if (port) opts.port = port
 
 server.listen(opts, () => {
-  let runtime = null
-  if (typeof global !== "undefined") runtime = "node"
-  if (typeof Deno !== "undefined") runtime = "deno"
-  if (typeof Bun !== "undefined") runtime = "bun"
-
-  let version = null
-  if (runtime === "node") version = process.versions.node
-  else if (runtime === "deno") version = Deno.version.deno
-  else if (runtime === "bun") version = Bun.version
-
-  let color = (t) => t
-  if (runtime === "node") color = chalk.hex("#66cc33")
-  else if (runtime === "deno") color = chalk.hex("#70ffaf")
-  else if (runtime === "bun") color = chalk.hex("#f472b6")
-
   const { address, family, port } = server.address()
 
-  if (runtime && version) console.log("using " + color(runtime + " " + version))
+  if (runtime && version)
+    console.log("using " + runtimeColor(runtime + " " + version))
   const argsAndEnvs = { root, dir_listing, show_only_ipv4, options }
   console.log(toDoubleQuotes(inspect(argsAndEnvs, { colors: true })))
 
@@ -295,5 +297,5 @@ server.listen(opts, () => {
   console.log("server is listening on:")
   addresses
     .sort((a, b) => a.family.localeCompare(b.family))
-    .forEach((net) => console.log("  " + color(netToURL(net))))
+    .forEach((net) => console.log("  " + runtimeColor(netToURL(net))))
 })
