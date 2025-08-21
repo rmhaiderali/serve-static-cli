@@ -118,6 +118,8 @@ const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
 
 let requestId = 0n
 
+const fileTypes = ["dir", "file"]
+
 const server = http.createServer(async function onRequest(req, res) {
   const id = ++requestId
   const startTime = process.hrtime.bigint()
@@ -190,8 +192,6 @@ const server = http.createServer(async function onRequest(req, res) {
 
         const slash = path.endsWith("/") ? "" : "/"
 
-        contents.unshift({ name: "..", isDirectory: () => true })
-
         if (hideDotDirs)
           contents = contents.filter((dirent) => !dirent.name.startsWith("."))
 
@@ -214,9 +214,14 @@ const server = http.createServer(async function onRequest(req, res) {
           })
         )
 
-        contents = contents.sort((a, b) => {
-          if (a.type === b.type) return 0
-          return a.type === "dir" ? -1 : 1
+        contents = contents
+          .sort((a, b) => (a.name > b.name ? 1 : a.name < b.name ? -1 : 0))
+          .sort((a, b) => fileTypes.indexOf(a.type) - fileTypes.indexOf(b.type))
+
+        contents.unshift({
+          type: "dir",
+          name: "..",
+          url: encodeURI(path + slash + ".."),
         })
 
         const doc = mustache.render(template, { path, contents })
