@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import os from "node:os"
+import net from "node:net"
 import http from "node:http"
 import fs from "node:fs/promises"
 import { inspect } from "node:util"
@@ -259,7 +260,9 @@ if (host) opts.host = host
 if (port) opts.port = port
 
 server.listen(opts, () => {
-  const { address, family, port } = server.address()
+  let { address, family, port } = server.address()
+
+  if (!family) family = net.isIPv6(address) ? "IPv6" : "IPv4"
 
   if (runtime && version)
     console.log("using " + runtimeColor(runtime + " " + version))
