@@ -184,21 +184,6 @@ const server = http.createServer(async function onRequest(req, res) {
       if (stat.isDirectory()) {
         if (options.setHeaders) await options.setHeaders(res, fullPath, stat)
 
-        const etag = etagify(stat)
-        const lastModified = stat.mtime.toUTCString()
-
-        const check = {}
-
-        if (options.etag !== false) check.etag = etag
-        if (options.lastModified !== false)
-          check["last-modified"] = lastModified
-
-        if (fresh(req.headers, check)) {
-          res.statusCode = 304
-          res.end()
-          break serve_listing
-        }
-
         let contents = null
         try {
           contents = await fs.readdir(fullPath, { withFileTypes: true })
@@ -242,10 +227,17 @@ const server = http.createServer(async function onRequest(req, res) {
 
         const doc = mustache.render(template, { path, contents })
 
-        if (options.etag !== false) res.setHeader("etag", etag)
+        const etag = etagify(doc)
+        const check = {}
+        if (options.etag !== false) check.etag = etag
 
-        if (options.lastModified !== false)
-          res.setHeader("last-modified", lastModified)
+        if (fresh(req.headers, check)) {
+          res.statusCode = 304
+          res.end()
+          return
+        }
+
+        if (options.etag !== false) res.setHeader("etag", etag)
 
         let cacheControl = "public, max-age=" + Math.floor(maxage / 1000)
         if (options.immutable) cacheControl += ", immutable"
