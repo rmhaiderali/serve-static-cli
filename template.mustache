@@ -6,13 +6,17 @@
     <meta name="color-scheme" content="light dark" />
     <title>Directory Listing for {{path}}</title>
     <style>
+      h2, a {
+        text-decoration: none;
+        overflow-wrap: anywhere
+      }
+
       li {
         font-size: large
       }
 
-      a, h2 {
-        text-decoration: none;
-        overflow-wrap: anywhere
+      ul {
+        padding-inline-end: 40px
       }
 
       .dir:link {
