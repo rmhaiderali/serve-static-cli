@@ -11,6 +11,8 @@
     "etag": "^1.8.1",
     "finalhandler": "^2.1.0",
     "fresh": "^2.0.0",
+    "ipaddr.js": "^2.2.0",
+    "ms": "^2.1.3",
     "mustache": "^4.2.0",
     "pretty-ms": "^9.2.0",
     "replace-quotes": "^0.1.1",

@@ -7,12 +7,14 @@ import fs from "node:fs/promises"
 import { inspect } from "node:util"
 import { join, resolve } from "node:path"
 import { Buffer } from "node:buffer"
-import prettyMs from "pretty-ms"
+import ms from "ms"
 import { z } from "zod"
 import chalk from "chalk"
 import fresh from "fresh"
 import etagify from "etag"
+import ipaddr from "ipaddr.js"
 import mustache from "mustache"
+import prettyMs from "pretty-ms"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
 import replaceQuotes, { double, single, backtick } from "replace-quotes"
@@ -32,29 +34,29 @@ const template = await fs.readFile(
   "utf8"
 )
 
-const root = process.argv[2] || "."
-const options = { dotfiles: "allow" }
+const ROOT = process.argv[2] || "."
+const OPTIONS = { dotfiles: "allow" }
 let userOptions = null
 let rootStats = null
 
 try {
-  rootStats = await fs.stat(root)
+  rootStats = await fs.stat(ROOT)
 } catch (e) {
-  console.error('Failed to stat root: "' + root + '"')
+  console.error('Failed to stat ROOT: "' + ROOT + '"')
   process.exit(1)
 }
 
 if (!rootStats.isDirectory()) {
-  console.error("Provided root is not a directory")
+  console.error("Provided ROOT is not a directory")
   process.exit(2)
 }
 
-const absRoot = resolve(root)
+const absRoot = resolve(ROOT)
 
 try {
   userOptions = eval("(" + (process.argv[3] || "{}") + ")")
 } catch (e) {
-  console.error("Failed to evaluate options object")
+  console.error("Failed to evaluate OPTIONS object")
   process.exit(3)
 }
 
@@ -65,57 +67,58 @@ if (!result.success) {
   process.exit(4)
 }
 
-Object.assign(options, userOptions)
+Object.assign(OPTIONS, userOptions)
 
-let port = process.env.PORT
-let host = process.env.HOST
-let dir_listing = process.env.DIR_LISTING
-let show_only_ipv4 = process.env.SHOW_ONLY_IPV4
+let PORT = process.env.PORT
+let HOST = process.env.HOST
+let DIR_LISTING = process.env.DIR_LISTING
+let SHOW_ONLY_IPV4 = process.env.SHOW_ONLY_IPV4
 
-if (port && !z.number().int().min(0).max(65535).safeParse(+port).success) {
+if (PORT && !z.number().int().min(0).max(65535).safeParse(+PORT).success) {
   console.error("PORT must be >= 0 and < 65536")
   process.exit(5)
 }
 
 if (
-  host?.toLocaleLowerCase() !== "localhost" &&
-  host &&
-  !z.string().ip().safeParse(host).success
+  HOST &&
+  HOST.toLocaleLowerCase() !== "localhost" &&
+  !z.string().ip().safeParse(HOST).success
 ) {
   console.error("HOST must be a valid network interface address")
   process.exit(6)
 }
 
-if (dir_listing && !z.enum(["true", "false"]).safeParse(dir_listing).success) {
+if (DIR_LISTING && !z.enum(["true", "false"]).safeParse(DIR_LISTING).success) {
   console.error("DIR_LISTING must be true or false")
   process.exit(7)
 }
 
 if (
-  show_only_ipv4 &&
-  !z.enum(["true", "false"]).safeParse(show_only_ipv4).success
+  SHOW_ONLY_IPV4 &&
+  !z.enum(["true", "false"]).safeParse(SHOW_ONLY_IPV4).success
 ) {
   console.error("SHOW_ONLY_IPV4 must be true or false")
   process.exit(8)
 }
 
-port = port ? +port : 3000
-dir_listing = dir_listing !== "false"
-show_only_ipv4 = show_only_ipv4 !== "false"
+PORT = PORT ? +PORT : 3000
+if (HOST && HOST !== "localhost") HOST = ipaddr.parse(HOST).toString()
+DIR_LISTING = DIR_LISTING !== "false"
+SHOW_ONLY_IPV4 = SHOW_ONLY_IPV4 !== "false"
 
 function getPrettyMs(delta) {
   return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
 }
 
-const MAX_MAXAGE = 60 * 60 * 24 * 365 * 1000 // 1 year
+const MAX_MAXAGE = ms("1y")
 
-let maxage = options.maxAge || options.maxage
+let maxage = OPTIONS.maxAge || OPTIONS.maxage
 maxage = typeof maxage === "string" ? getPrettyMs(maxage) : Number(maxage)
 maxage = !isNaN(maxage) ? Math.min(Math.max(maxage), MAX_MAXAGE) : 0
 
-const serve = serveStatic(root, options)
+const serve = serveStatic(ROOT, OPTIONS)
 
-const hideDotDirs = ["deny", "ignore"].includes(options.dotfiles)
+const hideDotDirs = ["deny", "ignore"].includes(OPTIONS.dotfiles)
 
 let requestId = 0n
 
@@ -170,7 +173,7 @@ const server = http.createServer(async function onRequest(req, res) {
     const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
 
     serve_listing: if (
-      dir_listing &&
+      DIR_LISTING &&
       !(hideDotDirs && path.indexOf("/.") !== -1)
     ) {
       const fullPath = join(absRoot, path)
@@ -183,7 +186,7 @@ const server = http.createServer(async function onRequest(req, res) {
       }
 
       if (stat.isDirectory()) {
-        if (options.setHeaders) await options.setHeaders(res, fullPath, stat)
+        if (OPTIONS.setHeaders) await OPTIONS.setHeaders(res, fullPath, stat)
 
         let contents = null
         try {
@@ -230,7 +233,7 @@ const server = http.createServer(async function onRequest(req, res) {
 
         const etag = etagify(doc)
         const check = {}
-        if (options.etag !== false) check.etag = etag
+        if (OPTIONS.etag !== false) check.etag = etag
 
         if (fresh(req.headers, check)) {
           res.statusCode = 304
@@ -238,10 +241,10 @@ const server = http.createServer(async function onRequest(req, res) {
           return
         }
 
-        if (options.etag !== false) res.setHeader("etag", etag)
+        if (OPTIONS.etag !== false) res.setHeader("etag", etag)
 
         let cacheControl = "public, max-age=" + Math.floor(maxage / 1000)
-        if (options.immutable) cacheControl += ", immutable"
+        if (OPTIONS.immutable) cacheControl += ", immutable"
         res.setHeader("cache-control", cacheControl)
 
         res.setHeader("content-type", "text/html; charset=utf-8")
@@ -256,8 +259,8 @@ const server = http.createServer(async function onRequest(req, res) {
 })
 
 const opts = {}
-if (host) opts.host = host
-if (port) opts.port = port
+if (PORT) opts.port = PORT
+if (HOST) opts.host = HOST
 
 server.listen(opts, () => {
   let { address, family, port } = server.address()
@@ -266,7 +269,8 @@ server.listen(opts, () => {
 
   if (runtime && version)
     console.log("using " + runtimeColor(runtime + " " + version))
-  const argsAndEnvs = { root, dir_listing, show_only_ipv4, options }
+
+  const argsAndEnvs = { ROOT, DIR_LISTING, SHOW_ONLY_IPV4, OPTIONS }
   console.log(toDoubleQuotes(inspect(argsAndEnvs, { colors: true })))
 
   const addresses = []
@@ -276,11 +280,11 @@ server.listen(opts, () => {
     return "http://" + address + ":" + port
   }
 
-  if (address === "0.0.0.0" || address === "::")
+  const isAddressWildcard = address === "0.0.0.0" || address === "::"
+
+  if (isAddressWildcard)
     for (const netList of Object.values(os.networkInterfaces())) {
       for (const net of netList) {
-        if ((address === "0.0.0.0" || show_only_ipv4) && net.family !== "IPv4")
-          continue
         addresses.push({ address: net.address, family: net.family, port })
       }
     }
@@ -289,8 +293,13 @@ server.listen(opts, () => {
   if (addresses.some((net) => ["127.0.0.1", "::1"].includes(net.address)))
     addresses.unshift({ address: "localhost", family: "IPv4", port })
 
+  const addressesToShow =
+    SHOW_ONLY_IPV4 && isAddressWildcard
+      ? addresses.filter((net) => net.family === "IPv4")
+      : addresses
+
   console.log("server is listening on:")
-  addresses
+  addressesToShow
     .sort((a, b) => a.family.localeCompare(b.family))
     .forEach((net) => console.log("  " + runtimeColor(netToURL(net))))
 })
