@@ -56,14 +56,18 @@ const absRoot = resolve(ROOT)
 try {
   userOptions = eval("(" + (process.argv[3] || "{}") + ")")
 } catch (e) {
-  console.error("Failed to evaluate OPTIONS object")
+  console.error("Provided OPTIONS object is not valid")
+  console.error("Failed to evaluate")
   process.exit(3)
 }
 
 const result = serveStaticOptionsSchema.safeParse(userOptions)
 
 if (!result.success) {
-  console.error(result.error.errors[0]?.message)
+  console.error("Provided OPTIONS object is not valid")
+  console.error("See: https://github.com/expressjs/serve-static#api")
+  console.error()
+  console.error(z.prettifyError(result.error))
   process.exit(4)
 }
 
@@ -122,7 +126,7 @@ const hideDotDirs = ["deny", "ignore"].includes(OPTIONS.dotfiles)
 
 let requestId = 0n
 
-const fileTypes = ["dir", "file"]
+const fileTypesOrder = ["dir", "file"]
 
 let runtime = null
 if (typeof global !== "undefined") runtime = "node"
@@ -221,7 +225,10 @@ const server = http.createServer(async function onRequest(req, res) {
 
         contents = contents
           .sort((a, b) => (a.name > b.name ? 1 : a.name < b.name ? -1 : 0))
-          .sort((a, b) => fileTypes.indexOf(a.type) - fileTypes.indexOf(b.type))
+          .sort(
+            (a, b) =>
+              fileTypesOrder.indexOf(a.type) - fileTypesOrder.indexOf(b.type)
+          )
 
         contents.unshift({
           type: "dir",
