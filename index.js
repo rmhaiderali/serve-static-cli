@@ -73,20 +73,19 @@ if (!result.success) {
 
 Object.assign(OPTIONS, userOptions)
 
-let PORT = process.env.PORT
-let HOST = process.env.HOST
+const PORT = process.env.PORT || "0"
+const HOST = process.env.HOST || "localhost"
 let DIR_LISTING = process.env.DIR_LISTING
 let SHOW_ONLY_IPV4 = process.env.SHOW_ONLY_IPV4
 
-if (PORT && !z.number().int().min(0).max(65535).safeParse(+PORT).success) {
-  console.error("PORT must be >= 0 and < 65536")
+if (!z.number().int().min(0).max(65535).safeParse(Number(PORT)).success) {
+  console.error("PORT must be an integer in range 0-65535")
   process.exit(5)
 }
 
 if (
-  HOST &&
   HOST.toLocaleLowerCase() !== "localhost" &&
-  !z.string().ip().safeParse(HOST).success
+  !z.union([z.ipv4(), z.ipv6()]).safeParse(HOST).success
 ) {
   console.error("HOST must be a valid network interface address")
   process.exit(6)
@@ -105,8 +104,6 @@ if (
   process.exit(8)
 }
 
-PORT = PORT ? +PORT : 3000
-if (HOST && HOST !== "localhost") HOST = ipaddr.parse(HOST).toString()
 DIR_LISTING = DIR_LISTING !== "false"
 SHOW_ONLY_IPV4 = SHOW_ONLY_IPV4 !== "false"
 
@@ -265,9 +262,10 @@ const server = http.createServer(async function onRequest(req, res) {
   })
 })
 
-const opts = {}
-if (PORT) opts.port = PORT
-if (HOST) opts.host = HOST
+const opts = {
+  port: Number(PORT),
+  host: HOST === "localhost" ? HOST : ipaddr.parse(HOST).toString(),
+}
 
 server.listen(opts, () => {
   let { address, family, port } = server.address()
