@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env deno
 
 import os from "node:os"
 import net from "node:net"
@@ -7,19 +7,28 @@ import path from "node:path"
 import fs from "node:fs/promises"
 import { inspect } from "node:util"
 import { Buffer } from "node:buffer"
-import ms from "ms"
-import { z } from "zod"
-import chalk from "chalk"
-import fresh from "fresh"
-import etagify from "etag"
-import ipaddr from "ipaddr.js"
-import mustache from "mustache"
-import parseurl from "parseurl"
-import prettyMs from "pretty-ms"
-import serveStatic from "serve-static"
-import finalhandler from "finalhandler"
-import Table from "@rmhaiderali/cli-table"
-import replaceQuotes, { double, single, backtick } from "replace-quotes"
+
+import npm from "./npm.js"
+
+const { z } = await npm("zod")
+const { default: ms } = await npm("ms")
+const { default: chalk } = await npm("chalk")
+const { default: fresh } = await npm("fresh")
+const { default: etagify } = await npm("etag")
+const { default: ipaddr } = await npm("ipaddr.js")
+const { default: mustache } = await npm("mustache")
+const { default: parseurl } = await npm("parseurl")
+const { default: prettyMs } = await npm("pretty-ms")
+const { default: serveStatic } = await npm("serve-static")
+const { default: finalhandler } = await npm("finalhandler")
+const { default: Table } = await npm("@rmhaiderali/cli-table")
+const {
+  double,
+  single,
+  backtick,
+  default: replaceQuotes,
+} = await npm("replace-quotes")
+
 import { serveStaticOptionsSchema } from "./schemas.js"
 
 const toDoubleQuotes = replaceQuotes(
@@ -31,15 +40,15 @@ const toDoubleQuotes = replaceQuotes(
   double,
 )
 
-const fileIndexTemplate = await fs.readFile(
-  import.meta.dirname + "/templates/file-index.mustache",
-  "utf8",
-)
+const fileIndexPath =
+  path.dirname(import.meta.url) + "/templates/file-index.mustache"
+const fileIndexResponse = await fetch(fileIndexPath)
+const fileIndexTemplate = await fileIndexResponse.text()
 
-const wrongBaseTemplate = await fs.readFile(
-  import.meta.dirname + "/templates/wrong-base.mustache",
-  "utf8",
-)
+const wrongBasePath =
+  path.dirname(import.meta.url) + "/templates/wrong-base.mustache"
+const wrongBaseResponse = await fetch(wrongBasePath)
+const wrongBaseTemplate = await wrongBaseResponse.text()
 
 const ROOT = process.argv[2] || "."
 const OPTIONS = { dotfiles: "allow" }

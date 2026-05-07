@@ -1,4 +1,6 @@
-import { z } from "zod"
+import npm from "./npm.js"
+
+const { z } = await npm("zod")
 
 export const serveStaticOptionsSchema = z
   .object({
