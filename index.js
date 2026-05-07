@@ -3,9 +3,9 @@
 import os from "node:os"
 import net from "node:net"
 import http from "node:http"
+import path from "node:path"
 import fs from "node:fs/promises"
 import { inspect } from "node:util"
-import { join, resolve } from "node:path"
 import { Buffer } from "node:buffer"
 import ms from "ms"
 import { z } from "zod"
@@ -17,6 +17,7 @@ import mustache from "mustache"
 import prettyMs from "pretty-ms"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
+import Table from "@rmhaiderali/cli-table"
 import replaceQuotes, { double, single, backtick } from "replace-quotes"
 import { serveStaticOptionsSchema } from "./schemas.js"
 
@@ -26,12 +27,12 @@ const toDoubleQuotes = replaceQuotes(
   single,
   backtick,
   // to
-  double
+  double,
 )
 
 const template = await fs.readFile(
   import.meta.dirname + "/template.mustache",
-  "utf8"
+  "utf8",
 )
 
 const ROOT = process.argv[2] || "."
@@ -42,7 +43,7 @@ let rootStats = null
 try {
   rootStats = await fs.stat(ROOT)
 } catch (e) {
-  console.error('Failed to stat ROOT: "' + ROOT + '"')
+  console.error("Failed to read ROOT directory: " + ROOT)
   process.exit(1)
 }
 
@@ -51,7 +52,7 @@ if (!rootStats.isDirectory()) {
   process.exit(2)
 }
 
-const absRoot = resolve(ROOT)
+const absRoot = path.resolve(ROOT).replaceAll(path.sep, "/")
 
 try {
   userOptions = eval("(" + (process.argv[3] || "{}") + ")")
@@ -76,7 +77,6 @@ Object.assign(OPTIONS, userOptions)
 const PORT = process.env.PORT || "0"
 const HOST = process.env.HOST || "localhost"
 let DIR_LISTING = process.env.DIR_LISTING
-let SHOW_ONLY_IPV4 = process.env.SHOW_ONLY_IPV4
 
 if (!z.number().int().min(0).max(65535).safeParse(Number(PORT)).success) {
   console.error("PORT must be an integer in range 0-65535")
@@ -96,16 +96,7 @@ if (DIR_LISTING && !z.enum(["true", "false"]).safeParse(DIR_LISTING).success) {
   process.exit(7)
 }
 
-if (
-  SHOW_ONLY_IPV4 &&
-  !z.enum(["true", "false"]).safeParse(SHOW_ONLY_IPV4).success
-) {
-  console.error("SHOW_ONLY_IPV4 must be true or false")
-  process.exit(8)
-}
-
 DIR_LISTING = DIR_LISTING !== "false"
-SHOW_ONLY_IPV4 = SHOW_ONLY_IPV4 !== "false"
 
 function getPrettyMs(delta) {
   return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
@@ -149,7 +140,7 @@ const server = http.createServer(async function onRequest(req, res) {
       " " +
       chalk.gray(new Date().toLocaleString()) +
       " " +
-      chalk.cyan(req.method + " " + req.url)
+      chalk.cyan(req.method + " " + req.url),
   )
 
   res.on("finish", () => {
@@ -165,19 +156,19 @@ const server = http.createServer(async function onRequest(req, res) {
         chalk.gray(new Date().toLocaleString()) +
         " " +
         resLogColor(
-          "Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6)
-        )
+          "Returned " + res.statusCode + " in " + getPrettyMs(deltaTime / 1e6),
+        ),
     )
   })
 
   serve(req, res, async function (err) {
-    const path = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
+    const reqPath = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
 
     serve_listing: if (
       DIR_LISTING &&
-      !(hideDotDirs && path.indexOf("/.") !== -1)
+      !(hideDotDirs && reqPath.indexOf("/.") !== -1)
     ) {
-      const fullPath = join(absRoot, path)
+      const fullPath = path.posix.join(absRoot, reqPath)
 
       let stat = null
       try {
@@ -196,7 +187,7 @@ const server = http.createServer(async function onRequest(req, res) {
           break serve_listing
         }
 
-        const slash = path.endsWith("/") ? "" : "/"
+        const slash = reqPath.endsWith("/") ? "" : "/"
 
         if (hideDotDirs)
           contents = contents.filter((dirent) => !dirent.name.startsWith("."))
@@ -215,25 +206,25 @@ const server = http.createServer(async function onRequest(req, res) {
             return {
               type,
               name: dirent.name,
-              url: encodeURI(path + slash + dirent.name),
+              url: encodeURI(reqPath + slash + dirent.name),
             }
-          })
+          }),
         )
 
         contents = contents
           .sort((a, b) => (a.name > b.name ? 1 : a.name < b.name ? -1 : 0))
           .sort(
             (a, b) =>
-              fileTypesOrder.indexOf(a.type) - fileTypesOrder.indexOf(b.type)
+              fileTypesOrder.indexOf(a.type) - fileTypesOrder.indexOf(b.type),
           )
 
         contents.unshift({
           type: "dir",
           name: "..",
-          url: encodeURI(path + slash + ".."),
+          url: encodeURI(reqPath + slash + ".."),
         })
 
-        const doc = mustache.render(template, { path, contents })
+        const doc = mustache.render(template, { path: reqPath, contents })
 
         const etag = etagify(doc)
         const check = {}
@@ -272,39 +263,59 @@ server.listen(opts, () => {
 
   if (!family) family = net.isIPv6(address) ? "IPv6" : "IPv4"
 
-  if (runtime && version)
-    console.log("using " + runtimeColor(runtime + " " + version))
-
-  const argsAndEnvs = { ROOT, DIR_LISTING, SHOW_ONLY_IPV4, OPTIONS }
-  console.log(toDoubleQuotes(inspect(argsAndEnvs, { colors: true })))
-
-  const addresses = []
+  let addresses = []
 
   function netToURL({ address, family, port }) {
     if (family === "IPv6") return "http://[" + address + "]:" + port
     return "http://" + address + ":" + port
   }
 
-  const isAddressWildcard = address === "0.0.0.0" || address === "::"
+  const ipv4Wildcard = "0.0.0.0"
+  const ipv6Wildcard = "::"
+
+  const isAddressWildcard = address === ipv4Wildcard || address === ipv6Wildcard
 
   if (isAddressWildcard)
     for (const netList of Object.values(os.networkInterfaces())) {
-      for (const net of netList) {
-        addresses.push({ address: net.address, family: net.family, port })
-      }
+      for (const net of netList)
+        if (address === ipv6Wildcard || net.family === "IPv4")
+          addresses.push({ address: net.address, family: net.family, port })
     }
   else addresses.push({ address, family, port })
 
-  if (addresses.some((net) => ["127.0.0.1", "::1"].includes(net.address)))
-    addresses.unshift({ address: "localhost", family: "IPv4", port })
+  const boundToLoopback = addresses.some((net) =>
+    ["127.0.0.1", "::1"].includes(net.address),
+  )
 
-  const addressesToShow =
-    SHOW_ONLY_IPV4 && isAddressWildcard
-      ? addresses.filter((net) => net.family === "IPv4")
-      : addresses
+  addresses = addresses.map((net) => netToURL(net)).sort()
 
-  console.log("server is listening on:")
-  addressesToShow
-    .sort((a, b) => a.family.localeCompare(b.family))
-    .forEach((net) => console.log("  " + runtimeColor(netToURL(net))))
+  if (boundToLoopback)
+    addresses.unshift(netToURL({ address: "localhost", family: "IPv4", port }))
+
+  const table = new Table({})
+
+  if (runtime && version)
+    table.push(["Runtime", runtimeColor(runtime + " " + version)])
+
+  table.push(["[ENV] HOST", chalk.yellow(HOST)])
+
+  table.push(["[ENV] PORT", chalk.yellow(port)])
+
+  table.push(["[ENV] DIR_LISTING", chalk.yellow(DIR_LISTING)])
+
+  table.push(["[ARG1] Serve Static Root", chalk.cyan(absRoot)])
+
+  const optionsString = toDoubleQuotes(inspect(OPTIONS, { colors: true }))
+
+  table.push(["[ARG2] Serve Static Options", optionsString])
+
+  console.log(table.toString())
+
+  const table2 = new Table({})
+
+  table2.push(["Listening On Following Addresses"])
+
+  addresses.forEach((addr) => table2.push([runtimeColor(addr)]))
+
+  console.log(table2.toString())
 })

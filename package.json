@@ -7,6 +7,7 @@
     "serve-static-cli": "./index.js"
   },
   "dependencies": {
+    "@rmhaiderali/cli-table": "^100.0.0",
     "chalk": "^5.4.1",
     "etag": "^1.8.1",
     "finalhandler": "^2.1.0",
