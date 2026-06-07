@@ -14,6 +14,7 @@ import fresh from "fresh"
 import etagify from "etag"
 import ipaddr from "ipaddr.js"
 import mustache from "mustache"
+import parseurl from "parseurl"
 import prettyMs from "pretty-ms"
 import serveStatic from "serve-static"
 import finalhandler from "finalhandler"
@@ -76,6 +77,7 @@ Object.assign(OPTIONS, userOptions)
 
 const PORT = process.env.PORT || "0"
 const HOST = process.env.HOST || "localhost"
+const BASE = process.env.BASE?.replace(/[/\\]+/g, "/") || "/"
 let DIR_LISTING = process.env.DIR_LISTING
 
 if (!z.number().int().min(0).max(65535).safeParse(Number(PORT)).success) {
@@ -91,30 +93,29 @@ if (
   process.exit(6)
 }
 
-if (DIR_LISTING && !z.enum(["true", "false"]).safeParse(DIR_LISTING).success) {
-  console.error("DIR_LISTING must be true or false")
+if (!BASE.startsWith("/")) {
+  console.error("BASE must start with a slash")
   process.exit(7)
 }
 
-DIR_LISTING = DIR_LISTING !== "false"
-
-function getPrettyMs(delta) {
-  return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
+if (BASE.length > 1 && BASE.endsWith("/")) {
+  console.error("BASE must not end with a slash")
+  process.exit(8)
 }
 
-const MAX_MAXAGE = ms("1y")
+const restrictedChar = BASE.match(/[?#]/)
 
-let maxage = OPTIONS.maxAge || OPTIONS.maxage
-maxage = typeof maxage === "string" ? getPrettyMs(maxage) : Number(maxage)
-maxage = !isNaN(maxage) ? Math.min(Math.max(maxage), MAX_MAXAGE) : 0
+if (restrictedChar) {
+  console.error("BASE must not include " + restrictedChar[0] + " character")
+  process.exit(9)
+}
 
-const serve = serveStatic(ROOT, OPTIONS)
+if (DIR_LISTING && !z.enum(["true", "false"]).safeParse(DIR_LISTING).success) {
+  console.error("DIR_LISTING must be true or false")
+  process.exit(10)
+}
 
-const hideDotDirs = ["deny", "ignore"].includes(OPTIONS.dotfiles)
-
-let requestId = 0n
-
-const fileTypesOrder = ["dir", "file"]
+DIR_LISTING = DIR_LISTING !== "false"
 
 let runtime = null
 if (typeof global !== "undefined") runtime = "node"
@@ -130,6 +131,36 @@ let runtimeColor = (t) => t
 if (runtime === "node") runtimeColor = chalk.hex("#66cc33")
 else if (runtime === "deno") runtimeColor = chalk.hex("#70ffaf")
 else if (runtime === "bun") runtimeColor = chalk.hex("#f472b6")
+
+function safeDecodeURI(uri) {
+  try {
+    return decodeURI(uri)
+  } catch (e) {
+    return null
+  }
+}
+
+function getPrettyMs(delta) {
+  return prettyMs(delta, { compact: true, formatSubMilliseconds: true })
+}
+
+const MAX_MAXAGE = ms("1y")
+
+let maxage = OPTIONS.maxAge || OPTIONS.maxage
+maxage = typeof maxage === "string" ? getPrettyMs(maxage) : Number(maxage)
+maxage = !isNaN(maxage) ? Math.min(Math.max(maxage), MAX_MAXAGE) : 0
+
+const redirect = OPTIONS.redirect !== false
+
+let requestId = 0n
+
+const fileTypesOrder = ["dir", "file"]
+
+const hideDotDirs = ["deny", "ignore"].includes(OPTIONS.dotfiles)
+
+const encodedBase = encodeURI(BASE)
+
+const serve = serveStatic(ROOT, OPTIONS)
 
 const server = http.createServer(async function onRequest(req, res) {
   const id = ++requestId
@@ -161,9 +192,38 @@ const server = http.createServer(async function onRequest(req, res) {
     )
   })
 
-  serve(req, res, async function (err) {
-    const reqPath = decodeURI(req.url).split("?")[0].replace(/\/+/g, "/")
+  req.originalUrl = req.url
+  const reqOriginalPath = safeDecodeURI(parseurl.original(req).pathname)
 
+  if (reqOriginalPath === null) {
+    finalhandler(req, res)()
+    return
+  }
+
+  if (!reqOriginalPath.startsWith(BASE)) {
+    finalhandler(req, res)()
+    return
+  }
+
+  const reqPath = path.posix.join("/", reqOriginalPath.slice(BASE.length))
+  req.url = encodeURI(reqPath)
+
+  if (BASE !== "/") {
+    if (reqOriginalPath.length === BASE.length && redirect) {
+      res.writeHead(302, { Location: encodedBase + "/" })
+      return res.end()
+    }
+
+    if (
+      reqOriginalPath.length > BASE.length &&
+      reqOriginalPath[BASE.length] !== "/"
+    ) {
+      finalhandler(req, res)()
+      return
+    }
+  }
+
+  serve(req, res, async function (err) {
     serve_listing: if (
       DIR_LISTING &&
       !(hideDotDirs && reqPath.indexOf("/.") !== -1)
@@ -187,8 +247,6 @@ const server = http.createServer(async function onRequest(req, res) {
           break serve_listing
         }
 
-        const slash = reqPath.endsWith("/") ? "" : "/"
-
         if (hideDotDirs)
           contents = contents.filter((dirent) => !dirent.name.startsWith("."))
 
@@ -198,7 +256,7 @@ const server = http.createServer(async function onRequest(req, res) {
             if (dirent.isDirectory()) type = "dir"
             else if (dirent.isSymbolicLink()) {
               try {
-                const stat = await fs.stat(fullPath + slash + dirent.name)
+                const stat = await fs.stat(path.join(fullPath, dirent.name))
                 if (stat.isDirectory()) type = "dir"
               } catch {}
             }
@@ -206,7 +264,13 @@ const server = http.createServer(async function onRequest(req, res) {
             return {
               type,
               name: dirent.name,
-              url: encodeURI(reqPath + slash + dirent.name),
+              url: encodeURI(
+                path.posix.join(
+                  reqOriginalPath,
+                  dirent.name,
+                  redirect && type === "dir" ? "/" : "",
+                ),
+              ),
             }
           }),
         )
@@ -218,13 +282,26 @@ const server = http.createServer(async function onRequest(req, res) {
               fileTypesOrder.indexOf(a.type) - fileTypesOrder.indexOf(b.type),
           )
 
-        contents.unshift({
-          type: "dir",
-          name: "..",
-          url: encodeURI(reqPath + slash + ".."),
-        })
+        const parentPath = path.posix.join(
+          "/",
+          reqOriginalPath
+            .split("/")
+            .slice(0, reqOriginalPath.endsWith("/") ? -2 : -1)
+            .join("/"),
+          redirect ? "/" : "",
+        )
 
-        const doc = mustache.render(template, { path: reqPath, contents })
+        if (reqPath !== "/")
+          contents.unshift({
+            type: "dir",
+            name: "..",
+            url: encodeURI(parentPath),
+          })
+
+        const doc = mustache.render(template, {
+          contents,
+          path: reqOriginalPath,
+        })
 
         const etag = etagify(doc)
         const check = {}
@@ -300,6 +377,8 @@ server.listen(opts, () => {
   table.push(["[ENV] HOST", chalk.yellow(HOST)])
 
   table.push(["[ENV] PORT", chalk.yellow(port)])
+
+  table.push(["[ENV] BASE", chalk.yellow(BASE)])
 
   table.push(["[ENV] DIR_LISTING", chalk.yellow(DIR_LISTING)])
 

@@ -51,4 +51,4 @@ npx github:rmhaiderali/serve-static-cli . '{setHeaders: (res) => res.setHeader("
 | root    | directory to serve          | string                      | "."                   |
 | options | serve-static options object | [`serve-static options`][1] | '{dotfiles: "allow"}' |
 
-[1]: https://expressjs.com/en/5x/api.html#express.static
+[1]: https://expressjs.com/en/resources/middleware/serve-static/#servestaticroot-options
