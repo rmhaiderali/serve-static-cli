@@ -42,6 +42,7 @@ npx github:rmhaiderali/serve-static-cli . '{setHeaders: (res) => res.setHeader("
 | ----------- | ---------------------------------------- |
 | HOST        | Network interface to listen on           |
 | PORT        | Port number to listen on                 |
+| BASE        | Base path for the served files           |
 | DIR_LISTING | Display directory content, true or false |
 
 ## Arguments:
