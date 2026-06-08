@@ -1,11 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <title>Directory Listing for {{path}}</title>
+    <title>Index of {{path}}</title>
     <style>
+      body {
+        font-family: sans-serif
+      }
+
       h2, a {
         text-decoration: none;
         overflow-wrap: anywhere
@@ -20,42 +24,42 @@
       }
 
       .dir:link {
-        color:hsl(240, 100%, 50%)
+        color: hsl(240, 100%, 50%)
       }
 
       .dir:visited {
-        color:hsl(240, 100%, 35%)
+        color: hsl(240, 100%, 35%)
       }
 
       .file:link {
-        color:hsl(16, 100%, 50%)
+        color: hsl(16, 100%, 50%)
       }
 
       .file:visited {
-        color:hsl(16, 100%, 35%)
+        color: hsl(16, 100%, 35%)
       }
 
       @media (prefers-color-scheme: dark) {
         .dir:link {
-          color:hsl(195, 90%, 55%)
+          color: hsl(195, 90%, 55%)
         }
 
         .dir:visited {
-          color:hsl(195, 90%, 40%)
+          color: hsl(195, 90%, 40%)
         }
 
         .file:link {
-          color:hsl(43, 90%, 55%)
+          color: hsl(43, 90%, 55%)
         }
 
         .file:visited {
-          color:hsl(43, 90%, 40%)
+          color: hsl(43, 90%, 40%)
         }
       }
     </style>
   </head>
   <body>
-    <h2>Directory Listing for {{path}}</h2>
+    <h2>Index of {{path}}</h2>
     <ul>
       {{#contents}}
         <li>
