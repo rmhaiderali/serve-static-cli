@@ -11,8 +11,8 @@
       }
 
       h2, a {
-        text-decoration: none;
         word-break: break-all;
+        text-decoration: none
       }
 
       li {

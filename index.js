@@ -31,8 +31,13 @@ const toDoubleQuotes = replaceQuotes(
   double,
 )
 
-const template = await fs.readFile(
-  import.meta.dirname + "/template.mustache",
+const fileIndexTemplate = await fs.readFile(
+  import.meta.dirname + "/templates/file-index.mu",
+  "utf8",
+)
+
+const wrongBaseTemplate = await fs.readFile(
+  import.meta.dirname + "/templates/wrong-base.mu",
   "utf8",
 )
 
@@ -159,8 +164,31 @@ const fileTypesOrder = ["dir", "file"]
 const hideDotDirs = ["deny", "ignore"].includes(OPTIONS.dotfiles)
 
 const encodedBase = encodeURI(BASE)
+const isBaseSkippable = BASE === "/"
 
 const serve = serveStatic(ROOT, OPTIONS)
+
+function sendDoc(req, res, doc) {
+  const etag = etagify(doc)
+  const check = {}
+  if (OPTIONS.etag !== false) check.etag = etag
+
+  if (fresh(req.headers, check)) {
+    res.statusCode = 304
+    res.end()
+    return
+  }
+
+  if (OPTIONS.etag !== false) res.setHeader("etag", etag)
+
+  let cacheControl = "public, max-age=" + Math.floor(maxage / 1000)
+  if (OPTIONS.immutable) cacheControl += ", immutable"
+  res.setHeader("cache-control", cacheControl)
+
+  res.setHeader("content-type", "text/html; charset=utf-8")
+  res.setHeader("content-length", Buffer.byteLength(doc))
+  res.end(doc)
+}
 
 const server = http.createServer(async function onRequest(req, res) {
   const id = ++requestId
@@ -200,25 +228,46 @@ const server = http.createServer(async function onRequest(req, res) {
     return
   }
 
+  if (!isBaseSkippable && reqOriginalPath === "/") {
+    res.writeHead(302, { Location: encodedBase + (redirect ? "/" : "") })
+    return res.end()
+  }
+
   if (!reqOriginalPath.startsWith(BASE)) {
-    finalhandler(req, res)()
+    res.statusCode = 404
+
+    const doc = mustache.render(wrongBaseTemplate, {
+      base: BASE,
+      path: BASE + reqOriginalPath,
+      encodedPath: encodedBase + req.originalUrl,
+    })
+
+    sendDoc(req, res, doc)
     return
   }
 
   const reqPath = path.posix.join("/", reqOriginalPath.slice(BASE.length))
   req.url = encodeURI(reqPath)
 
-  if (BASE !== "/") {
-    if (reqOriginalPath.length === BASE.length && redirect) {
+  if (!isBaseSkippable) {
+    const isBaseExactMatch = reqOriginalPath.length === BASE.length
+    const isBaseWithSlashMatch = reqOriginalPath[BASE.length] === "/"
+
+    if (isBaseExactMatch && redirect) {
       res.writeHead(302, { Location: encodedBase + "/" })
       return res.end()
     }
 
-    if (
-      reqOriginalPath.length > BASE.length &&
-      reqOriginalPath[BASE.length] !== "/"
-    ) {
-      finalhandler(req, res)()
+    if (!isBaseExactMatch && !isBaseWithSlashMatch) {
+      res.statusCode = 404
+
+      const doc = mustache.render(wrongBaseTemplate, {
+        base: BASE,
+        path: BASE + reqOriginalPath,
+        encodedPath: encodedBase + req.originalUrl,
+      })
+
+      sendDoc(req, res, doc)
       return
     }
   }
@@ -298,30 +347,12 @@ const server = http.createServer(async function onRequest(req, res) {
             url: encodeURI(parentPath),
           })
 
-        const doc = mustache.render(template, {
+        const doc = mustache.render(fileIndexTemplate, {
           contents,
           path: reqOriginalPath,
         })
 
-        const etag = etagify(doc)
-        const check = {}
-        if (OPTIONS.etag !== false) check.etag = etag
-
-        if (fresh(req.headers, check)) {
-          res.statusCode = 304
-          res.end()
-          return
-        }
-
-        if (OPTIONS.etag !== false) res.setHeader("etag", etag)
-
-        let cacheControl = "public, max-age=" + Math.floor(maxage / 1000)
-        if (OPTIONS.immutable) cacheControl += ", immutable"
-        res.setHeader("cache-control", cacheControl)
-
-        res.setHeader("content-type", "text/html; charset=utf-8")
-        res.setHeader("content-length", Buffer.byteLength(doc))
-        res.end(doc)
+        sendDoc(req, res, doc)
         return
       }
     }
