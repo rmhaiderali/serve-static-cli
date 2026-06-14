@@ -32,12 +32,12 @@ const toDoubleQuotes = replaceQuotes(
 )
 
 const fileIndexTemplate = await fs.readFile(
-  import.meta.dirname + "/templates/file-index.mu",
+  import.meta.dirname + "/templates/file-index.mustache",
   "utf8",
 )
 
 const wrongBaseTemplate = await fs.readFile(
-  import.meta.dirname + "/templates/wrong-base.mu",
+  import.meta.dirname + "/templates/wrong-base.mustache",
   "utf8",
 )
 
