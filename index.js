@@ -373,9 +373,9 @@ server.listen(opts, () => {
 
   let addresses = []
 
-  function netToURL({ address, family, port }) {
-    if (family === "IPv6") return "http://[" + address + "]:" + port
-    return "http://" + address + ":" + port
+  function niToURL({ address, family, port, base }) {
+    if (family === "IPv6") return "http://[" + address + "]:" + port + base
+    return "http://" + address + ":" + port + base
   }
 
   const ipv4Wildcard = "0.0.0.0"
@@ -383,22 +383,25 @@ server.listen(opts, () => {
 
   const isAddressWildcard = address === ipv4Wildcard || address === ipv6Wildcard
 
-  if (isAddressWildcard)
-    for (const netList of Object.values(os.networkInterfaces())) {
-      for (const net of netList)
-        if (address === ipv6Wildcard || net.family === "IPv4")
-          addresses.push({ address: net.address, family: net.family, port })
-    }
-  else addresses.push({ address, family, port })
+  const base = BASE === "/" ? "" : encodedBase + (redirect ? "/" : "")
 
-  const boundToLoopback = addresses.some((net) =>
-    ["127.0.0.1", "::1"].includes(net.address),
+  if (isAddressWildcard)
+    for (const ni of Object.values(os.networkInterfaces()).flat()) {
+      if (address === ipv6Wildcard || ni.family === "IPv4")
+        addresses.push({ address: ni.address, family: ni.family, port, base })
+    }
+  else addresses.push({ address, family, port, base })
+
+  const boundToLoopback = addresses.some((ni) =>
+    ["127.0.0.1", "::1"].includes(ni.address),
   )
 
-  addresses = addresses.map((net) => netToURL(net)).sort()
+  addresses = addresses.map((ni) => niToURL(ni)).sort()
 
   if (boundToLoopback)
-    addresses.unshift(netToURL({ address: "localhost", family: "IPv4", port }))
+    addresses.unshift(
+      niToURL({ address: "localhost", family: "IPv4", port, base }),
+    )
 
   const table = new Table({})
 
