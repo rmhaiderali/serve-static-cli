@@ -1,8 +1,15 @@
 {
   "name": "serve-static-files",
-  "version": "0.1.0",
+  "description": "Serve static files from cli",
+  "version": "0.1.1",
   "type": "module",
   "main": "index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rmhaiderali/serve-static-files.git"
+  },
+  "homepage": "https://github.com/rmhaiderali/serve-static-files",
   "bin": {
     "serve-static-files": "./index.js"
   },
