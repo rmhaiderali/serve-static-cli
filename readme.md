@@ -3,37 +3,37 @@
 Node
 
 ```bash
-npx github:rmhaiderali/serve-static-cli <root> <options>
+npx serve-static-files <root> <options>
 ```
 
 Bun
 
 ```bash
-bunx --bun github:rmhaiderali/serve-static-cli <root> <options>
+bunx --bun serve-static-files <root> <options>
 ```
 
 Deno
 
 ```bash
-deno -A https://raw.githubusercontent.com/rmhaiderali/serve-static-cli/refs/heads/deno/index.js <root> <options>
+deno -A https://raw.githubusercontent.com/rmhaiderali/serve-static-files/refs/heads/deno/index.js <root> <options>
 ```
 
 Default values
 
 ```bash
-npx github:rmhaiderali/serve-static-cli . "{}"
+npx serve-static-files . "{}"
 ```
 
 Disable index
 
 ```bash
-npx github:rmhaiderali/serve-static-cli . "{index: false}"
+npx serve-static-files . "{index: false}"
 ```
 
 Set headers
 
 ```bash
-npx github:rmhaiderali/serve-static-cli . '{setHeaders: (res) => res.setHeader("powered-by", "serve-static-cli")}'
+npx serve-static-files . '{setHeaders: (res) => res.setHeader("powered-by", "serve-static-files")}'
 ```
 
 ## Environment Variables:

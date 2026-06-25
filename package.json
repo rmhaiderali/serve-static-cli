@@ -1,10 +1,10 @@
 {
-  "name": "serve-static-cli",
+  "name": "serve-static-files",
   "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "serve-static-cli": "./index.js"
+    "serve-static-files": "./index.js"
   },
   "dependencies": {
     "@rmhaiderali/cli-table": "^100.0.1",
