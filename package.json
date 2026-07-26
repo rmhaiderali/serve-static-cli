@@ -1,7 +1,7 @@
 {
   "name": "serve-static-files",
   "description": "Serve static files from cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "index.js",
   "license": "MIT",
