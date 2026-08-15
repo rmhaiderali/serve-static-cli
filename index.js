@@ -59,6 +59,14 @@ if (!rootStats.isDirectory()) {
 }
 
 const absRoot = path.resolve(ROOT).replaceAll(path.sep, "/")
+const absHome = path.resolve(os.homedir()).replaceAll(path.sep, "/")
+
+const rootRelativeToHome =
+  absRoot === absHome
+    ? "~"
+    : absRoot.startsWith(absHome + "/")
+      ? "~" + absRoot.slice(absHome.length)
+      : absRoot
 
 try {
   userOptions = eval("(" + (process.argv[3] || "{}") + ")")
@@ -416,7 +424,7 @@ server.listen(opts, () => {
 
   table.push(["[ENV] DIR_LISTING", chalk.yellow(DIR_LISTING)])
 
-  table.push(["[ARG1] Serve Static Root", chalk.cyan(absRoot)])
+  table.push(["[ARG1] Serve Static Root", chalk.cyan(rootRelativeToHome)])
 
   const optionsString = toDoubleQuotes(inspect(OPTIONS, { colors: true }))
 
